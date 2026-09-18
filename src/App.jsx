@@ -6,6 +6,16 @@ import { AddToolModal } from './components/AddToolModal';
 import { AuthModal } from './components/AuthModal';
 import { ManageNetworkModal } from './components/ManageNetworkModal';
 import { EditProfileModal } from './components/EditProfileModal';
+import { InstallPrompt } from './components/InstallPrompt';
+
+// I din App-komponent:
+return (
+  <div className="min-h-screen bg-slate-50">
+    {/* Din befintliga kod */}
+    
+    <InstallPrompt />
+  </div>
+);
 import {
   ShieldCheck,
   Plus,
@@ -359,7 +369,7 @@ export default function App() {
         {!currentUser ? (
           <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center max-w-md mx-auto my-12">
             <ShieldCheck className="w-12 h-12 text-indigo-600 mx-auto mb-3" />
-            <h3 className="text-lg font-bold text-slate-800 mb-1">Välkommen till ToolPool</h3>
+            <h3 className="text-lg font-bold text-slate-800 mb-1">Välkommen grannjävel</h3>
             <p className="text-xs text-slate-500 mb-4">
               Logga in eller skapa ett konto för att slippa glömma vilka verktyg Johan har lånat.
             </p>
