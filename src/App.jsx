@@ -9,13 +9,7 @@ import { EditProfileModal } from './components/EditProfileModal';
 import { InstallPrompt } from './components/InstallPrompt';
 
 // I din App-komponent:
-return (
-  <div className="min-h-screen bg-slate-50">
-    {/* Din befintliga kod */}
-    
-    <InstallPrompt />
-  </div>
-);
+
 import {
   ShieldCheck,
   Plus,
@@ -237,6 +231,7 @@ export default function App() {
   }
 
   return (
+
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-24 md:pb-8 select-none w-full max-w-full overflow-x-hidden">
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm w-full">
@@ -488,6 +483,7 @@ export default function App() {
           fetchTools();
         }}
       />
+      <InstallPrompt />
     </div>
   );
 }
