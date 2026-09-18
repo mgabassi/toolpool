@@ -232,7 +232,7 @@ export default function App() {
 
   return (
 
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-24 md:pb-8 select-none w-full max-w-full overflow-x-hidden">
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-24 md:pb-8 select-none w-full max-w-full overflow-x-hidden pt-[env(safe-area-inset-top)]">
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm w-full">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
