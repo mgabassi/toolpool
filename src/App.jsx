@@ -361,7 +361,7 @@ export default function App() {
             <ShieldCheck className="w-12 h-12 text-indigo-600 mx-auto mb-3" />
             <h3 className="text-lg font-bold text-slate-800 mb-1">Välkommen till ToolPool</h3>
             <p className="text-xs text-slate-500 mb-4">
-              Logga in eller skapa ett konto för att lägga till verktyg och börja dela tryggt i grannskapet.
+              Logga in eller skapa ett konto för att slippa glömma vilka verktyg Johan har lånat.
             </p>
             <button
               onClick={() => setIsAuthModalOpen(true)}
@@ -391,7 +391,7 @@ export default function App() {
                 onClick={() => setIsNetworkModalOpen(true)}
                 className="text-xs text-indigo-600 font-semibold hover:underline cursor-pointer"
               >
-                Välj vilka grannar du litar på
+                Vem litar du på?
               </button>
             )}
           </div>
