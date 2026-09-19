@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Camera, Plus } from 'lucide-react';
+import { X, Camera, Plus, Sparkles, Loader2 } from 'lucide-react';
 
 export function AddToolModal({ isOpen, onClose, onAddTool }) {
   const [title, setTitle] = useState('');
@@ -7,14 +7,48 @@ export function AddToolModal({ isOpen, onClose, onAddTool }) {
   const [category, setCategory] = useState('Trädgård');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   if (!isOpen) return null;
 
-  function handleImageChange(e) {
+  async function handleImageChange(e) {
     const file = e.target.files[0];
-    if (file) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
+    if (!file) return;
+
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+
+    // Starta AI-analysen automatiskt när bild väljs
+    setIsAnalyzing(true);
+
+    try {
+      // 1. Omvandla filen till base64 för att kunna skicka till API:et
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onloadend = async () => {
+        const base64Image = reader.result;
+
+        // 2. Anropa AI-backendfunktionen (justera sökvägen om din endpoint heter något annat)
+        const response = await fetch('/api/analyze-tool', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64Image }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Fyll i formulärfälten med vad AI:n hittade
+          if (data.title) setTitle(data.title);
+          if (data.category) setCategory(data.category);
+          if (data.description) setDescription(data.description);
+        } else {
+          console.error('AI-analys misslyckades med status:', response.status);
+        }
+        setIsAnalyzing(false);
+      };
+    } catch (err) {
+      console.error('Fel vid AI-analys:', err);
+      setIsAnalyzing(false);
     }
   }
 
@@ -30,12 +64,13 @@ export function AddToolModal({ isOpen, onClose, onAddTool }) {
       imageFile
     );
 
-    // Nollställ
+    // Nollställ formuläret
     setTitle('');
     setDescription('');
     setCategory('Trädgård');
     setImageFile(null);
     setImagePreview(null);
+    setIsAnalyzing(false);
     onClose();
   }
 
@@ -56,6 +91,38 @@ export function AddToolModal({ isOpen, onClose, onAddTool }) {
         </div>
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Bild & AI-identifiering</label>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-2 rounded-xl text-xs font-medium cursor-pointer transition-colors border border-indigo-100">
+                <Camera className="w-4 h-4 text-indigo-600" />
+                <span>Välj / Ta foto</span>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  capture="environment"
+                  onChange={handleImageChange} 
+                  className="hidden" 
+                />
+              </label>
+
+              {imagePreview && (
+                <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200">
+                  <img src={imagePreview} alt="Förhandsvisning" className="w-full h-full object-cover" />
+                </div>
+              )}
+            </div>
+
+            {/* AI Statusindikator */}
+            {isAnalyzing && (
+              <div className="flex items-center gap-1.5 mt-2 text-xs text-indigo-600 font-medium animate-pulse">
+                <Sparkles className="w-3.5 h-3.5" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Analyserar verktyget med AI...</span>
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Titel</label>
             <input
@@ -94,23 +161,6 @@ export function AddToolModal({ isOpen, onClose, onAddTool }) {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Bild</label>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-medium cursor-pointer transition-colors border border-slate-200">
-                <Camera className="w-4 h-4 text-slate-500" />
-                <span>Välj / Ta foto</span>
-                <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
-              </label>
-
-              {imagePreview && (
-                <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200">
-                  <img src={imagePreview} alt="Förhandsvisning" className="w-full h-full object-cover" />
-                </div>
-              )}
-            </div>
-          </div>
-
           <div className="pt-3 flex gap-2">
             <button
               type="button"
@@ -121,7 +171,8 @@ export function AddToolModal({ isOpen, onClose, onAddTool }) {
             </button>
             <button
               type="submit"
-              className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 flex items-center justify-center ggi-1 cursor-pointer"
+              disabled={isAnalyzing}
+              className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer"
             >
               <Plus className="w-4 h-4" /> Lägg till
             </button>
