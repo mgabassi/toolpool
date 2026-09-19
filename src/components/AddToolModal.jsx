@@ -121,7 +121,7 @@ export function AddToolModal({ isOpen, onClose, onAddTool }) {
             </button>
             <button
               type="submit"
-              className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 flex items-center justify-center gap-1 cursor-pointer"
+              className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 flex items-center justify-center ggi-1 cursor-pointer"
             >
               <Plus className="w-4 h-4" /> Lägg till
             </button>
