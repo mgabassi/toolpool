@@ -1,132 +1,196 @@
 import React, { useState, useEffect } from 'react';
-import { X, Camera, User, Loader2 } from 'lucide-react';
-import { compressImage } from '../lib/imageCompressor';
+import { X, User, Upload, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-export function EditProfileModal({ isOpen, onClose, currentUser, userProfile, onProfileUpdated }) {
+export function EditProfileModal({ isOpen, onClose, currentUser }) {
   const [fullName, setFullName] = useState('');
-  const [avatarFile, setAvatarFile] = useState(null);
-  const [avatarPreview, setAvatarPreview] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [imageFile, setImageFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
 
+  // Hämta befintlig profil när modalen öppnas
   useEffect(() => {
-    if (userProfile) {
-      setFullName(userProfile.full_name || '');
-      setAvatarPreview(userProfile.avatar_url || null);
+    if (isOpen && currentUser) {
+      fetchProfile();
     }
-  }, [userProfile, isOpen]);
+  }, [isOpen, currentUser]);
 
-  if (!isOpen) return null;
+  async function fetchProfile() {
+    setFetching(true);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', currentUser.id)
+      .single();
 
-  function handleAvatarChange(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setAvatarFile(file);
-    setAvatarPreview(URL.createObjectURL(file));
+    if (!error && data) {
+      setFullName(data.full_name || '');
+      setAvatarUrl(data.avatar_url || '');
+      setPreviewUrl(data.avatar_url || '');
+    } else {
+      // Om ingen profil finns ännu, använd e-postens namn som standard
+      setFullName(currentUser.email?.split('@')[0] || '');
+    }
+    setFetching(false);
   }
 
-  async function handleSave(e) {
+  function handleImageChange(e) {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault();
-    setSaving(true);
+    if (!currentUser) return;
 
-    let avatarUrl = userProfile?.avatar_url || null;
+    setLoading(true);
+    let newAvatarUrl = avatarUrl;
 
-    if (avatarFile) {
-      const compressed = await compressImage(avatarFile, 400, 0.8);
-      const fileName = `avatar_${currentUser.id}_${Date.now()}.jpg`;
+    // Om användaren valt en ny profilbild, ladda upp till Supabase Storage
+    if (imageFile) {
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `${currentUser.id}-${Math.random()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('tool-images')
-        .upload(fileName, compressed, { upsert: true });
+        .upload(filePath, imageFile);
 
       if (!uploadError) {
-        const { data } = supabase.storage.from('tool-images').getPublicUrl(fileName);
-        avatarUrl = data.publicUrl;
+        const { data: urlData } = supabase.storage
+          .from('tool-images')
+          .getPublicUrl(filePath);
+        newAvatarUrl = urlData.publicUrl;
       }
     }
 
-    const { error } = await supabase
-      .from('profiles')
-      .upsert({
-        id: currentUser.id,
-        full_name: fullName,
-        avatar_url: avatarUrl,
-        updated_at: new Date().toISOString(),
-      });
+    // Spara eller uppdatera i tabellen profiles
+    const { error } = await supabase.from('profiles').upsert({
+      id: currentUser.id,
+      full_name: fullName,
+      avatar_url: newAvatarUrl,
+      updated_at: new Date().toISOString(),
+    });
 
-    setSaving(false);
+    setLoading(false);
 
     if (!error) {
-      onProfileUpdated();
+      // Uppdatera även namnet på alla verktyg som användaren äger så att det syns överallt
+      await supabase
+        .from('tools')
+        .update({ owner_name: fullName, owner_avatar: newAvatarUrl })
+        .eq('user_id', currentUser.id);
+
       onClose();
+      window.location.reload(); // Laddar om för att läsa in nya profilnamnet
+    } else {
+      alert('Kunde inte spara profilen: ' + error.message);
     }
   }
 
-  return (
-    <div 
-      onClick={onClose}
-      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 cursor-pointer"
-    >
-      <div 
-        onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl relative cursor-default"
-      >
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h3 className="font-bold text-slate-800">Redigera Profil</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+  if (!isOpen) return null;
 
-        <form onSubmit={handleSave} className="mt-4 space-y-4">
-          <div className="flex flex-col items-center justify-center">
-            <div className="relative w-20 h-20 rounded-full bg-indigo-50 border-2 border-indigo-100 flex items-center justify-center overflow-hidden mb-2">
-              {avatarPreview ? (
-                <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                <User className="w-8 h-8 text-indigo-400" />
-              )}
-              <label className="absolute inset-0 bg-slate-900/40 opacity-0 hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
-                <Camera className="w-5 h-5 text-white" />
-                <input type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-xl relative animate-in fade-in zoom-in-95 duration-150">
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <h2 className="text-xl font-bold text-slate-800 mb-6">Redigera Profil</h2>
+
+        {fetching ? (
+          <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-2" />
+            <p className="text-xs">Hämtar profildata...</p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Profilbild */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative w-24 h-24 rounded-full bg-indigo-50 border-2 border-indigo-100 flex items-center justify-center overflow-hidden group">
+                {previewUrl ? (
+                  <img
+                    src={previewUrl}
+                    alt="Profil"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User className="w-10 h-10 text-indigo-400" />
+                )}
+
+                <label className="absolute inset-0 bg-slate-900/40 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-xs font-medium">
+                  <Upload className="w-5 h-5 mb-1" />
+                  Ändra
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              <label className="text-xs text-indigo-600 font-semibold cursor-pointer hover:underline">
+                Välj profilbild
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
               </label>
             </div>
-            <label className="text-xs font-semibold text-indigo-600 cursor-pointer">
-              {avatarPreview ? 'Ändra profilbild' : 'Välj profilbild'}
-              <input type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
-            </label>
-          </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Ditt namn</label>
-            <input
-              type="text"
-              required
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="T.ex. Anna Svensson"
-              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
+            {/* Namnfält */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Ditt namn
+              </label>
+              <input
+                type="text"
+                required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="T.ex. Michael Svensson"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
 
-          <div className="pt-2 flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer"
-            >
-              Avbryt
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 flex items-center justify-center gap-1 cursor-pointer"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Spara'}
-            </button>
-          </div>
-        </form>
+            {/* Knappar */}
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl text-xs hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Avbryt
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Sparar...</span>
+                  </>
+                ) : (
+                  <span>Spara</span>
+                )}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
