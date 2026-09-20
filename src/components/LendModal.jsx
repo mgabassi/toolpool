@@ -42,7 +42,7 @@ export function LendModal({ isOpen, onClose, tool, trustedNeighbors, onLend }) {
               required
               className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
             >
-              <option value="">Select a neighbor...</option>
+              <option value="">Välj en granne...</option>
               {trustedNeighbors.map((neighbor) => (
                 <option key={neighbor.id} value={neighbor.id}>
                   {neighbor.full_name || 'Anonym granne'}

@@ -27,7 +27,6 @@ export function ToolCard({ tool, currentUser, onToggleStatus, onUpdateImage, onD
     }
   }
 
-  // Hantera knappklicket för att skilja på egen utlåning och vanligt lån
   function handleActionButtonClick() {
     if (tool.is_available) {
       if (isOwner) {
@@ -116,7 +115,6 @@ export function ToolCard({ tool, currentUser, onToggleStatus, onUpdateImage, onD
 
             <h3 className="text-lg font-bold text-slate-800 mb-1 leading-tight">{tool.title}</h3>
 
-            {/* Ägarens Profilbild och Namn under verktygsnamnet */}
             <div className="flex items-center gap-2 mb-3 mt-1.5">
               {tool.owner_avatar ? (
                 <img

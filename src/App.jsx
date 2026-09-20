@@ -24,7 +24,6 @@ export default function App() {
   const [lendModalTool, setLendModalTool] = useState(null);
 
   useEffect(() => {
-    // Hämta inloggad användare
     supabase.auth.getUser().then(({ data: { user } }) => {
       setCurrentUser(user);
     });
@@ -58,22 +57,17 @@ export default function App() {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!error && data) {
-      setTools(data);
-    }
+    if (!error && data) setTools(data);
   }
 
   async function fetchProfiles() {
     const { data, error } = await supabase.from('profiles').select('*');
-    if (!error && data) {
-      setProfiles(data);
-    }
+    if (!error && data) setProfiles(data);
   }
 
   async function fetchTrustedNeighbors() {
     if (!currentUser) return;
 
-    // Hämta betrodda relationer för inloggad användare
     const { data: trusted } = await supabase
       .from('trusted_users')
       .select('trusted_user_id')
@@ -92,12 +86,10 @@ export default function App() {
     }
   }
 
-  // Lägg till verktyg (med bild-uppladdning)
   async function handleAddTool(toolData, imageFile) {
     if (!currentUser) return;
 
     let imageUrl = null;
-
     if (imageFile) {
       const fileExt = imageFile.name.split('.').pop();
       const fileName = `${Math.random()}.${fileExt}`;
@@ -115,7 +107,6 @@ export default function App() {
       }
     }
 
-    // Hämta profil för ägaren
     const userProfile = profiles.find((p) => p.id === currentUser.id);
 
     const newTool = {
@@ -129,12 +120,9 @@ export default function App() {
 
     const { error } = await supabase.from('tools').insert([newTool]);
 
-    if (!error) {
-      fetchTools();
-    }
+    if (!error) fetchTools();
   }
 
-  // Uppdatera bild för befintligt verktyg
   async function handleUpdateImage(toolId, imageFile) {
     if (!currentUser || !imageFile) return;
 
@@ -157,26 +145,19 @@ export default function App() {
       .update({ image_url: urlData.publicUrl })
       .eq('id', toolId);
 
-    if (!updateError) {
-      fetchTools();
-    }
+    if (!updateError) fetchTools();
   }
 
-  // Ta bort verktyg
   async function handleDeleteTool(toolId) {
     const { error } = await supabase.from('tools').delete().eq('id', toolId);
-    if (!error) {
-      fetchTools();
-    }
+    if (!error) fetchTools();
   }
 
-  // Växla status (Låna själv / Återlämna)
   async function handleToggleStatus(tool) {
     if (!currentUser) return;
 
     const userProfile = profiles.find((p) => p.id === currentUser.id);
     const borrowerName = userProfile?.full_name || currentUser.email?.split('@')[0] || 'Anonym';
-
     const willBeAvailable = !tool.is_available;
 
     const { error } = await supabase
@@ -188,12 +169,9 @@ export default function App() {
       })
       .eq('id', tool.id);
 
-    if (!error) {
-      fetchTools();
-    }
+    if (!error) fetchTools();
   }
 
-  // Manuell utlåning till specifik granne
   async function handleLendToNeighbor(tool, borrowerId, borrowerName) {
     const { error } = await supabase
       .from('tools')
@@ -204,12 +182,9 @@ export default function App() {
       })
       .eq('id', tool.id);
 
-    if (!error) {
-      fetchTools();
-    }
+    if (!error) fetchTools();
   }
 
-  // Filtrera verktyg
   const filteredTools = useMemo(() => {
     return tools.filter((tool) => {
       const titleMatch = tool.title?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -221,7 +196,6 @@ export default function App() {
       const matchesOwner = selectedOwner === 'all' || tool.owner_name === selectedOwner;
       const matchesCategory = selectedCategory === 'all' || tool.category === selectedCategory;
 
-      // Status- och tillhörighetsfilter
       let matchesStatus = true;
       if (statusFilter === 'lent_out') {
         matchesStatus = tool.user_id === currentUser?.id && !tool.is_available;
@@ -233,7 +207,6 @@ export default function App() {
     });
   }, [tools, searchQuery, selectedOwner, selectedCategory, statusFilter, currentUser]);
 
-  // Lista på unika ägare för dropdown
   const uniqueOwners = useMemo(() => {
     const owners = tools.map((t) => t.owner_name).filter(Boolean);
     return ['all', ...Array.from(new Set(owners))];
@@ -244,7 +217,7 @@ export default function App() {
       <Navbar currentUser={currentUser} />
 
       <main className="max-w-6xl mx-auto px-4 pt-6">
-        {/* Sök och åtgärder */}
+        {/* Sök och Lägg till */}
         <div className="flex flex-col md:flex-row gap-3 mb-6 items-stretch md:items-center justify-between">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -268,9 +241,8 @@ export default function App() {
           )}
         </div>
 
-        {/* Filter-sektion */}
+        {/* Nya Filterkortet med knapparna */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 space-y-3">
-          {/* Snabbknappar för Status/Tillhörighet */}
           <div className="flex gap-1.5 overflow-x-auto pb-1 border-b border-slate-100">
             <button
               onClick={() => setStatusFilter('all')}
@@ -308,7 +280,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Ägare & Kategori Rullistor */}
           <div className="flex flex-col sm:flex-row gap-3 pt-1">
             <div className="flex-1 flex items-center gap-2">
               <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -347,7 +318,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Verktygsgrid / Laddning */}
+        {/* Verktygsgrid */}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">
             <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-2" />
@@ -358,7 +329,7 @@ export default function App() {
             <Wrench className="w-10 h-10 text-slate-300 mx-auto mb-3" />
             <h3 className="font-bold text-slate-700 mb-1">Inga verktyg hittades</h3>
             <p className="text-xs text-slate-500">
-              Prova att ändra dina sökfilter eller lägg till ett nytt verktyg i poolen.
+              Prova att ändra dina sökfilter eller lägg till ett nytt verktyg.
             </p>
           </div>
         ) : (
@@ -378,7 +349,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Modaler */}
       <AddToolModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
