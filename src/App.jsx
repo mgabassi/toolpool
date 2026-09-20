@@ -213,7 +213,7 @@ export default function App() {
   }, [tools]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-12">
+    <div className="min-h-screen bg-slate-50 text-slate-800 pb-24 sm:pb-12">
       <Navbar currentUser={currentUser} />
 
       <main className="max-w-6xl mx-auto px-4 pt-6">
