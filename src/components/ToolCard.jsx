@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Wrench, CheckCircle, XCircle, Camera, Loader2, UserCheck, Maximize2, Trash2, User } from 'lucide-react';
+import { Wrench, CheckCircle, XCircle, Camera, Loader2, UserCheck, Maximize2, Trash2, User, Handshake } from 'lucide-react';
 import { ImageModal } from './ImageModal';
 
-export function ToolCard({ tool, currentUser, onToggleStatus, onUpdateImage, onDeleteTool }) {
+export function ToolCard({ tool, currentUser, onToggleStatus, onUpdateImage, onDeleteTool, onOpenLendModal }) {
   const [uploading, setUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isImageOpen, setIsImageOpen] = useState(false);
-
+  
   const isOwner = currentUser && currentUser.id === tool.user_id;
   const isBorrower = currentUser && currentUser.id === tool.borrower_id;
   const canChangeStatus = isOwner || isBorrower || tool.is_available;
@@ -24,6 +24,19 @@ export function ToolCard({ tool, currentUser, onToggleStatus, onUpdateImage, onD
     if (window.confirm(`Är du säker på att du vill ta bort "${tool.title}"?`)) {
       setIsDeleting(true);
       await onDeleteTool(tool.id);
+    }
+  }
+
+  // Hantera knappklicket för att skilja på egen utlåning och vanligt lån
+  function handleActionButtonClick() {
+    if (tool.is_available) {
+      if (isOwner) {
+        onOpenLendModal(tool);
+      } else {
+        onToggleStatus(tool);
+      }
+    } else {
+      onToggleStatus(tool);
     }
   }
 
@@ -146,14 +159,25 @@ export function ToolCard({ tool, currentUser, onToggleStatus, onUpdateImage, onD
 
             {canChangeStatus ? (
               <button
-                onClick={() => onToggleStatus(tool)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                onClick={handleActionButtonClick}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
                   tool.is_available
                     ? 'bg-indigo-600 text-white hover:bg-indigo-700'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                {tool.is_available ? 'Låna' : 'Återlämna'}
+                {tool.is_available ? (
+                  isOwner ? (
+                    <>
+                      <Handshake className="w-3.5 h-3.5" />
+                      Låna ut
+                    </>
+                  ) : (
+                    'Låna'
+                  )
+                ) : (
+                  'Återlämna'
+                )}
               </button>
             ) : (
               <span className="text-[11px] text-slate-400 italic">

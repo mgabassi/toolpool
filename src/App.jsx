@@ -1,212 +1,215 @@
-import { useEffect, useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from './lib/supabase';
-import { compressImage } from './lib/imageCompressor';
+import { Navbar } from './components/Navbar';
 import { ToolCard } from './components/ToolCard';
 import { AddToolModal } from './components/AddToolModal';
-import { AuthModal } from './components/AuthModal';
-import { ManageNetworkModal } from './components/ManageNetworkModal';
-import { EditProfileModal } from './components/EditProfileModal';
-import { InstallPrompt } from './components/InstallPrompt';
-
-// I din App-komponent:
-
-import {
-  ShieldCheck,
-  Plus,
-  LogIn,
-  LogOut,
-  Search,
-  User,
-  Users,
-  Filter,
-  X,
-  Tag,
-  Wrench,
-  UserCog,
-} from 'lucide-react';
+import { LendModal } from './components/LendModal';
+import { Search, Plus, Filter, Loader2, Wrench } from 'lucide-react';
 
 export default function App() {
-  const [tools, setTools] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isNetworkModalOpen, setIsNetworkModalOpen] = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-
   const [currentUser, setCurrentUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(null);
+  const [tools, setTools] = useState([]);
+  const [profiles, setProfiles] = useState([]);
+  const [trustedNeighbors, setTrustedNeighbors] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  // Filter-states
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOwner, setSelectedOwner] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'lent_out', 'borrowed_by_me'
+
+  // Modaler
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [lendModalTool, setLendModalTool] = useState(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setCurrentUser(session?.user ?? null);
-      if (session?.user) fetchUserProfile(session.user.id);
+    // Hämta inloggad användare
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setCurrentUser(user);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       setCurrentUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      } else {
-        setUserProfile(null);
-      }
     });
 
-    return () => subscription.unsubscribe();
+    fetchInitialData();
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
-    fetchTools();
+    if (currentUser) {
+      fetchTrustedNeighbors();
+    }
   }, [currentUser]);
 
-  async function fetchUserProfile(userId) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    if (data) setUserProfile(data);
+  async function fetchInitialData() {
+    setLoading(true);
+    await Promise.all([fetchTools(), fetchProfiles()]);
+    setLoading(false);
   }
 
   async function fetchTools() {
-    setLoading(true);
-
-    const { data: allTools, error } = await supabase
+    const { data, error } = await supabase
       .from('tools')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Fel vid hämtning:', error);
-      setLoading(false);
-      return;
+    if (!error && data) {
+      setTools(data);
     }
-
-    if (!currentUser) {
-      setTools([]);
-      setLoading(false);
-      return;
-    }
-
-    const { data: profiles } = await supabase.from('profiles').select('id, full_name, avatar_url');
-    const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
-
-    const { data: trustedByOwners } = await supabase
-      .from('trusted_users')
-      .select('owner_id')
-      .eq('trusted_user_id', currentUser.id);
-
-    const allowedOwnerIds = (trustedByOwners || []).map((t) => t.owner_id);
-
-    const visibleTools = (allTools || [])
-      .filter((tool) => tool.user_id === currentUser.id || allowedOwnerIds.includes(tool.user_id))
-      .map((tool) => {
-        const ownerProf = profileMap.get(tool.user_id);
-        return {
-          ...tool,
-          owner_name: ownerProf?.full_name || tool.owner_name || 'Anonym granne',
-          owner_avatar: ownerProf?.avatar_url || null,
-        };
-      });
-
-    setTools(visibleTools);
-    setLoading(false);
   }
 
-  async function uploadImageToStorage(file) {
-    if (!file) return null;
+  async function fetchProfiles() {
+    const { data, error } = await supabase.from('profiles').select('*');
+    if (!error && data) {
+      setProfiles(data);
+    }
+  }
 
-    const compressedFile = await compressImage(file);
-    const cleanFileName = compressedFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const fileName = `${Date.now()}_${cleanFileName}`;
+  async function fetchTrustedNeighbors() {
+    if (!currentUser) return;
+
+    // Hämta betrodda relationer för inloggad användare
+    const { data: trusted } = await supabase
+      .from('trusted_users')
+      .select('trusted_user_id')
+      .eq('owner_id', currentUser.id);
+
+    if (trusted && trusted.length > 0) {
+      const ids = trusted.map((t) => t.trusted_user_id);
+      const { data: neighborProfiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .in('id', ids);
+
+      setTrustedNeighbors(neighborProfiles || []);
+    } else {
+      setTrustedNeighbors([]);
+    }
+  }
+
+  // Lägg till verktyg (med bild-uppladdning)
+  async function handleAddTool(toolData, imageFile) {
+    if (!currentUser) return;
+
+    let imageUrl = null;
+
+    if (imageFile) {
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${currentUser.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('tool-images')
+        .upload(filePath, imageFile);
+
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage
+          .from('tool-images')
+          .getPublicUrl(filePath);
+        imageUrl = urlData.publicUrl;
+      }
+    }
+
+    // Hämta profil för ägaren
+    const userProfile = profiles.find((p) => p.id === currentUser.id);
+
+    const newTool = {
+      ...toolData,
+      user_id: currentUser.id,
+      owner_name: userProfile?.full_name || currentUser.email?.split('@')[0] || 'Anonym',
+      owner_avatar: userProfile?.avatar_url || null,
+      image_url: imageUrl,
+      is_available: true,
+    };
+
+    const { error } = await supabase.from('tools').insert([newTool]);
+
+    if (!error) {
+      fetchTools();
+    }
+  }
+
+  // Uppdatera bild för befintligt verktyg
+  async function handleUpdateImage(toolId, imageFile) {
+    if (!currentUser || !imageFile) return;
+
+    const fileExt = imageFile.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `${currentUser.id}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from('tool-images')
-      .upload(fileName, compressedFile, { cacheControl: '3600', upsert: true });
+      .upload(filePath, imageFile);
 
-    if (uploadError) return null;
+    if (uploadError) return;
 
-    const { data: urlData } = supabase.storage.from('tool-images').getPublicUrl(fileName);
-    return urlData.publicUrl;
+    const { data: urlData } = supabase.storage
+      .from('tool-images')
+      .getPublicUrl(filePath);
+
+    const { error: updateError } = await supabase
+      .from('tools')
+      .update({ image_url: urlData.publicUrl })
+      .eq('id', toolId);
+
+    if (!updateError) {
+      fetchTools();
+    }
   }
 
+  // Ta bort verktyg
+  async function handleDeleteTool(toolId) {
+    const { error } = await supabase.from('tools').delete().eq('id', toolId);
+    if (!error) {
+      fetchTools();
+    }
+  }
+
+  // Växla status (Låna själv / Återlämna)
   async function handleToggleStatus(tool) {
     if (!currentUser) return;
 
+    const userProfile = profiles.find((p) => p.id === currentUser.id);
+    const borrowerName = userProfile?.full_name || currentUser.email?.split('@')[0] || 'Anonym';
+
     const willBeAvailable = !tool.is_available;
-    const borrowerId = willBeAvailable ? null : currentUser.id;
-    const borrowerName = willBeAvailable
-      ? null
-      : userProfile?.full_name || currentUser.email;
 
     const { error } = await supabase
       .from('tools')
       .update({
         is_available: willBeAvailable,
+        borrower_id: willBeAvailable ? null : currentUser.id,
+        borrower_name: willBeAvailable ? null : borrowerName,
+      })
+      .eq('id', tool.id);
+
+    if (!error) {
+      fetchTools();
+    }
+  }
+
+  // Manuell utlåning till specifik granne
+  async function handleLendToNeighbor(tool, borrowerId, borrowerName) {
+    const { error } = await supabase
+      .from('tools')
+      .update({
+        is_available: false,
         borrower_id: borrowerId,
         borrower_name: borrowerName,
       })
       .eq('id', tool.id);
 
-    if (!error) fetchTools();
-  }
-
-  async function handleAddTool(newTool, imageFile) {
-    let imageUrl = null;
-    if (imageFile) {
-      imageUrl = await uploadImageToStorage(imageFile);
+    if (!error) {
+      fetchTools();
     }
-
-    const ownerName = userProfile?.full_name || currentUser?.email || 'Anonym granne';
-
-    const { error } = await supabase.from('tools').insert([
-      {
-        ...newTool,
-        owner_name: ownerName,
-        image_url: imageUrl,
-        user_id: currentUser?.id ?? null,
-      },
-    ]);
-
-    if (!error) fetchTools();
   }
 
-  async function handleUpdateImage(id, imageFile) {
-    const imageUrl = await uploadImageToStorage(imageFile);
-    if (!imageUrl) return;
-
-    const { error } = await supabase
-      .from('tools')
-      .update({ image_url: imageUrl })
-      .eq('id', id);
-
-    if (!error) fetchTools();
-  }
-
-  async function handleDeleteTool(id) {
-    const { error } = await supabase.from('tools').delete().eq('id', id);
-    if (!error) fetchTools();
-  }
-
-  const { uniqueOwners, uniqueCategories } = useMemo(() => {
-    const owners = new Set();
-    const categories = new Set();
-
-    tools.forEach((tool) => {
-      if (tool.owner_name) owners.add(tool.owner_name);
-      if (tool.category) categories.add(tool.category);
-    });
-
-    return {
-      uniqueOwners: Array.from(owners),
-      uniqueCategories: Array.from(categories),
-    };
-  }, [tools]);
-
+  // Filtrera verktyg
   const filteredTools = useMemo(() => {
     return tools.filter((tool) => {
       const titleMatch = tool.title?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -218,190 +221,148 @@ export default function App() {
       const matchesOwner = selectedOwner === 'all' || tool.owner_name === selectedOwner;
       const matchesCategory = selectedCategory === 'all' || tool.category === selectedCategory;
 
-      return matchesSearch && matchesOwner && matchesCategory;
+      // Status- och tillhörighetsfilter
+      let matchesStatus = true;
+      if (statusFilter === 'lent_out') {
+        matchesStatus = tool.user_id === currentUser?.id && !tool.is_available;
+      } else if (statusFilter === 'borrowed_by_me') {
+        matchesStatus = tool.borrower_id === currentUser?.id && !tool.is_available;
+      }
+
+      return matchesSearch && matchesOwner && matchesCategory && matchesStatus;
     });
-  }, [tools, searchQuery, selectedOwner, selectedCategory]);
+  }, [tools, searchQuery, selectedOwner, selectedCategory, statusFilter, currentUser]);
 
-  const hasActiveFilters = searchQuery !== '' || selectedOwner !== 'all' || selectedCategory !== 'all';
-
-  function resetFilters() {
-    setSearchQuery('');
-    setSelectedOwner('all');
-    setSelectedCategory('all');
-  }
+  // Lista på unika ägare för dropdown
+  const uniqueOwners = useMemo(() => {
+    const owners = tools.map((t) => t.owner_name).filter(Boolean);
+    return ['all', ...Array.from(new Set(owners))];
+  }, [tools]);
 
   return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 pb-12">
+      <Navbar currentUser={currentUser} />
 
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-24 md:pb-8 select-none w-full max-w-full overflow-x-hidden pt-[env(safe-area-inset-top)]">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm w-full">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="bg-indigo-600 text-white p-2 rounded-xl">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <h1 className="text-lg font-bold tracking-tight text-slate-900">ToolPool</h1>
+      <main className="max-w-6xl mx-auto px-4 pt-6">
+        {/* Sök och åtgärder */}
+        <div className="flex flex-col md:flex-row gap-3 mb-6 items-stretch md:items-center justify-between">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Sök verktyg, ägare eller kategori..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
+            />
           </div>
 
-          <div className="flex items-center gap-2">
-            {currentUser ? (
+          {currentUser && (
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-2xl text-xs font-semibold flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Lägg till verktyg</span>
+            </button>
+          )}
+        </div>
+
+        {/* Filter-sektion */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 space-y-3">
+          {/* Snabbknappar för Status/Tillhörighet */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1 border-b border-slate-100">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                statusFilter === 'all'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Alla verktyg
+            </button>
+            {currentUser && (
               <>
                 <button
-                  onClick={() => setIsProfileModalOpen(true)}
-                  className="flex items-center gap-1.5 p-1.5 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                  title="Redigera profil"
+                  onClick={() => setStatusFilter('lent_out')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                    statusFilter === 'lent_out'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
                 >
-                  {userProfile?.avatar_url ? (
-                    <img
-                      src={userProfile.avatar_url}
-                      alt="Avatar"
-                      className="w-7 h-7 rounded-full object-cover border border-slate-200"
-                    />
-                  ) : (
-                    <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
-                      {userProfile?.full_name?.[0]?.toUpperCase() || 'U'}
-                    </div>
-                  )}
+                  Mina utlånade verktyg
                 </button>
-
                 <button
-                  onClick={() => supabase.auth.signOut()}
-                  title="Logga ut"
-                  className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                  onClick={() => setStatusFilter('borrowed_by_me')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                    statusFilter === 'borrowed_by_me'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
                 >
-                  <LogOut className="w-5 h-5" />
+                  Verktyg jag lånat
                 </button>
               </>
-            ) : (
-              <button
-                onClick={() => setIsAuthModalOpen(true)}
-                className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-              >
-                <LogIn className="w-4 h-4" />
-                <span>Logga in</span>
-              </button>
             )}
           </div>
-        </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="max-w-5xl mx-auto px-4 py-6 w-full">
-        <div className="mb-4">
-          <h2 className="text-xl font-bold">Tillgängliga verktyg</h2>
-          <p className="text-slate-500 text-xs">
-            {currentUser
-              ? 'Dina och dina grannars utlånade verktyg.'
-              : 'Logga in för att se tillgängliga verktyg.'}
-          </p>
-        </div>
-
-        {currentUser && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-3.5 mb-6 shadow-sm space-y-3 w-full">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                <Filter className="w-3.5 h-3.5" /> Sök & Filter
-              </span>
-
-              {hasActiveFilters && (
-                <button
-                  onClick={resetFilters}
-                  className="text-xs text-indigo-600 font-medium hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  Rensa
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 w-full">
-              <div className="relative w-full">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Sök verktyg..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50"
-                />
-              </div>
-
-              <div className="relative w-full">
-                <User className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
-                <select
-                  value={selectedOwner}
-                  onChange={(e) => setSelectedOwner(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50 text-slate-700 appearance-none cursor-pointer"
-                >
-                  <option value="all">Alla ägare</option>
-                  {uniqueOwners.map((owner) => (
+          {/* Ägare & Kategori Rullistor */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-1">
+            <div className="flex-1 flex items-center gap-2">
+              <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <label className="text-xs font-medium text-slate-500 whitespace-nowrap">Ägare:</label>
+              <select
+                value={selectedOwner}
+                onChange={(e) => setSelectedOwner(e.target.value)}
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">Alla ägare</option>
+                {uniqueOwners
+                  .filter((o) => o !== 'all')
+                  .map((owner) => (
                     <option key={owner} value={owner}>
                       {owner}
                     </option>
                   ))}
-                </select>
-              </div>
+              </select>
+            </div>
 
-              <div className="relative w-full">
-                <Tag className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50 text-slate-700 appearance-none cursor-pointer"
-                >
-                  <option value="all">Alla typer av verktyg</option>
-                  {uniqueCategories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="flex-1 flex items-center gap-2">
+              <label className="text-xs font-medium text-slate-500 whitespace-nowrap">Kategori:</label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">Alla kategorier</option>
+                <option value="Trädgård">Trädgård</option>
+                <option value="Bygg & El">Bygg & El</option>
+                <option value="Handverktyg">Handverktyg</option>
+                <option value="Städ & Rengöring">Städ & Rengöring</option>
+                <option value="Övrigt">Övrigt</option>
+              </select>
             </div>
           </div>
-        )}
+        </div>
 
-        {!currentUser ? (
-          <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center max-w-md mx-auto my-12">
-            <ShieldCheck className="w-12 h-12 text-indigo-600 mx-auto mb-3" />
-            <h3 className="text-lg font-bold text-slate-800 mb-1">Välkommen grannjävel</h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Logga in eller skapa ett konto för att slippa glömma vilka verktyg Johan har lånat.
-            </p>
-            <button
-              onClick={() => setIsAuthModalOpen(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-            >
-              Logga in / Skapa konto
-            </button>
+        {/* Verktygsgrid / Laddning */}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-2" />
+            <p className="text-xs">Hämtar verktyg...</p>
           </div>
-        ) : loading ? (
-          <p className="text-slate-500 text-sm">Laddar verktyg...</p>
         ) : filteredTools.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center max-w-md mx-auto my-6">
-            <p className="text-slate-500 text-sm mb-3">
-              {hasActiveFilters
-                ? 'Inga verktyg matchade din sökning eller filtrering.'
-                : 'Inga verktyg tillgängliga ännu.'}
+          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center max-w-md mx-auto my-8">
+            <Wrench className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+            <h3 className="font-bold text-slate-700 mb-1">Inga verktyg hittades</h3>
+            <p className="text-xs text-slate-500">
+              Prova att ändra dina sökfilter eller lägg till ett nytt verktyg i poolen.
             </p>
-            {hasActiveFilters ? (
-              <button
-                onClick={resetFilters}
-                className="text-xs text-indigo-600 font-semibold hover:underline cursor-pointer"
-              >
-                Rensa alla filter
-              </button>
-            ) : (
-              <button
-                onClick={() => setIsNetworkModalOpen(true)}
-                className="text-xs text-indigo-600 font-semibold hover:underline cursor-pointer"
-              >
-                Vem litar du på?
-              </button>
-            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredTools.map((tool) => (
               <ToolCard
                 key={tool.id}
@@ -410,80 +371,27 @@ export default function App() {
                 onToggleStatus={handleToggleStatus}
                 onUpdateImage={handleUpdateImage}
                 onDeleteTool={handleDeleteTool}
+                onOpenLendModal={(toolToLend) => setLendModalTool(toolToLend)}
               />
             ))}
           </div>
         )}
       </main>
 
-      {/* Bottenmeny för mobiler */}
-      {currentUser && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-2 flex items-center justify-around z-40 shadow-lg pb-safe">
-          <button
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="flex flex-col items-center gap-1 text-indigo-600 cursor-pointer"
-          >
-            <Wrench className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Verktyg</span>
-          </button>
-
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex flex-col items-center gap-1 text-slate-600 hover:text-indigo-600 cursor-pointer"
-          >
-            <div className="bg-indigo-600 text-white p-2.5 rounded-full shadow-md -mt-5 border-4 border-slate-50">
-              <Plus className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] font-medium -mt-1">Lägg till</span>
-          </button>
-
-          <button
-            onClick={() => setIsNetworkModalOpen(true)}
-            className="flex flex-col items-center gap-1 text-slate-600 hover:text-indigo-600 cursor-pointer"
-          >
-            <Users className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Grannar</span>
-          </button>
-
-          <button
-            onClick={() => setIsProfileModalOpen(true)}
-            className="flex flex-col items-center gap-1 text-slate-600 hover:text-indigo-600 cursor-pointer"
-          >
-            <UserCog className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Profil</span>
-          </button>
-        </nav>
-      )}
-
+      {/* Modaler */}
       <AddToolModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onAddTool={handleAddTool}
       />
 
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onAuthSuccess={fetchTools}
+      <LendModal
+        isOpen={!!lendModalTool}
+        onClose={() => setLendModalTool(null)}
+        tool={lendModalTool}
+        trustedNeighbors={trustedNeighbors}
+        onLend={handleLendToNeighbor}
       />
-
-      <ManageNetworkModal
-        isOpen={isNetworkModalOpen}
-        onClose={() => setIsNetworkModalOpen(false)}
-        currentUser={currentUser}
-      />
-
-      <EditProfileModal
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-        currentUser={currentUser}
-        userProfile={userProfile}
-        onProfileUpdated={() => {
-          if (currentUser) fetchUserProfile(currentUser.id);
-          fetchTools();
-        }}
-      />
-      <InstallPrompt />
     </div>
   );
 }
