@@ -17,6 +17,7 @@ export default function App() {
   const [profiles, setProfiles] = useState([]);
   const [trustedNeighbors, setTrustedNeighbors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   // Filter-states
   const [searchQuery, setSearchQuery] = useState('');
@@ -402,6 +403,7 @@ export default function App() {
                   onDeleteTool={handleDeleteTool}
                   onOpenLendModal={(toolToLend) => setLendModalTool(toolToLend)}
                   onEditTool={(toolToEdit) => setEditTool(toolToEdit)}
+                  onOpenImage={(imageUrl) => setSelectedImage(imageUrl)}
                 />
               ))}
             </div>
@@ -432,6 +434,24 @@ export default function App() {
         tool={editTool}
         onUpdateTool={handleUpdateTool}
       />
+      {selectedImage && (
+  <div 
+    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 cursor-pointer"
+    onClick={() => setSelectedImage(null)}
+  >
+    <div className="relative max-w-3xl max-h-[90vh] w-full flex items-center justify-center">
+      <img 
+        src={selectedImage} 
+        alt="Förstorad bild" 
+        className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl" 
+      />
+      <span className="absolute top-[-35px] right-0 text-white text-xs font-semibold bg-white/20 px-3 py-1 rounded-full">
+        Klicka var som helst för att stänga
+      </span>
     </div>
+  </div>
+)}
+    </div>
+    
   );
 }

@@ -9,10 +9,12 @@ export function ToolCard({
   onDeleteTool,
   onEditTool,
   onOpenLendModal,
+  onOpenImage, // Ny prop för att klicka och förstora bild
 }) {
   const isOwner = currentUser?.id === tool.user_id;
 
   function handleImageUpload(e) {
+    e.stopPropagation(); // Förhindrar att bildförstoring triggas
     const file = e.target.files[0];
     if (file) {
       onUpdateImage(tool.id, file);
@@ -22,10 +24,26 @@ export function ToolCard({
   return (
     <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col justify-between transition-all hover:shadow-md">
       <div>
-        {/* Bildsektion med actionknappar */}
-        <div className="relative h-48 bg-slate-100 overflow-hidden">
+        {/* Bildsektion (klickbar för förstoring) */}
+        <div
+          onClick={() => tool.image_url && onOpenImage && onOpenImage(tool.image_url)}
+          className={`relative h-48 bg-slate-100 overflow-hidden ${
+            tool.image_url ? 'cursor-pointer group' : ''
+          }`}
+        >
           {tool.image_url ? (
-            <img src={tool.image_url} alt={tool.title} className="w-full h-full object-cover" />
+            <>
+              <img
+                src={tool.image_url}
+                alt={tool.title}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-slate-900/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <span className="bg-white/90 text-slate-700 text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-sm">
+                  Klicka för att förstora
+                </span>
+              </div>
+            </>
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
               <span className="text-xs font-medium">Ingen bild</span>
@@ -34,19 +52,30 @@ export function ToolCard({
 
           {/* Knappar i övre högra hörnet för ägaren */}
           {isOwner && (
-            <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl shadow-sm border border-slate-200/50">
+            <div
+              onClick={(e) => e.stopPropagation()} // Förhindrar att bilden förstoras när man klickar på knapparna
+              className="absolute top-3 right-3 flex items-center gap-1.5 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl shadow-sm border border-slate-200/50 z-10"
+            >
               {/* Kamera-knapp */}
               <label
                 className="p-2 hover:bg-slate-100 text-slate-600 rounded-xl cursor-pointer transition-colors"
                 title="Byt bild"
               >
                 <Camera className="w-4 h-4" />
-                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
               </label>
 
               {/* Penn-knapp för redigering */}
               <button
-                onClick={() => onEditTool(tool)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditTool(tool);
+                }}
                 className="p-2 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-xl transition-colors cursor-pointer"
                 title="Redigera verktyg"
               >
@@ -55,7 +84,10 @@ export function ToolCard({
 
               {/* Papperskorgs-knapp */}
               <button
-                onClick={() => onDeleteTool(tool.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteTool(tool.id);
+                }}
                 className="p-2 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-xl transition-colors cursor-pointer"
                 title="Ta bort verktyg"
               >
@@ -65,7 +97,7 @@ export function ToolCard({
           )}
 
           {/* Kategori-tagg */}
-          <div className="absolute top-3 left-3 bg-slate-900/70 backdrop-blur-md text-white text-[10px] font-semibold px-2.5 py-1 rounded-full">
+          <div className="absolute top-3 left-3 bg-slate-900/70 backdrop-blur-md text-white text-[10px] font-semibold px-2.5 py-1 rounded-full pointer-events-none">
             {tool.category}
           </div>
         </div>
