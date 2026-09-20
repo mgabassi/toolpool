@@ -1,103 +1,127 @@
-import React from 'react';
-import { Wrench, User, LogIn, Users, Home } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Wrench, Users, User, LogOut, Plus } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
-export function Navbar({ currentUser, onOpenAuth, onOpenProfile, onOpenNetwork }) {
+export function Navbar({ currentUser, onOpenAuth, onOpenProfile, onOpenNetwork, onOpenAddTool }) {
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchProfile();
+    } else {
+      setProfile(null);
+    }
+  }, [currentUser]);
+
+  async function fetchProfile() {
+    const { data } = await supabase
+      .from('profiles')
+      .select('full_name, avatar_url')
+      .eq('id', currentUser.id)
+      .single();
+
+    if (data) {
+      setProfile(data);
+    }
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+  }
+
+  const displayName = profile?.full_name || currentUser?.email?.split('@')[0] || 'Profil';
+  const avatarUrl = profile?.avatar_url;
+
   return (
     <>
-      {/* Top Navbar med marginal för kameraö/notch */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 pt-10 sm:pt-0">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      {/* Topprad / Header */}
+      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200/80">
+        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="bg-indigo-600 text-white p-2 rounded-xl">
-              <Wrench className="w-5 h-5" />
+            <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-sm">
+              <Wrench className="w-4 h-4" />
             </div>
-            <span className="font-bold text-slate-800 text-lg">ToolPool</span>
+            <span className="font-extrabold text-slate-800 text-base tracking-tight">ToolPool</span>
           </div>
 
-          {/* Dator-meny */}
-          <div className="hidden sm:flex items-center gap-2">
-            {currentUser ? (
-              <>
-                <button
-                  onClick={onOpenNetwork}
-                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Users className="w-4 h-4 text-indigo-600" />
-                  <span>Grannar</span>
-                </button>
-
-                <button
-                  onClick={onOpenProfile}
-                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <User className="w-4 h-4 text-indigo-600" />
-                  <span>Profil</span>
-                </button>
-              </>
-            ) : (
+          {currentUser ? (
+            <div className="flex items-center gap-3">
+              {/* Profil-visning i toppraden */}
               <button
-                onClick={onOpenAuth}
-                className="bg-indigo-600 text-white px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 hover:bg-indigo-700 transition-colors cursor-pointer"
+                onClick={onOpenProfile}
+                className="flex items-center gap-2.5 p-1 pr-2.5 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Redigera profil"
               >
-                <LogIn className="w-4 h-4" />
-                <span>Logga in</span>
+                <div className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center overflow-hidden shrink-0">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-4 h-4 text-indigo-600" />
+                  )}
+                </div>
+                <span className="text-xs font-semibold text-slate-700 max-w-[120px] truncate hidden sm:inline">
+                  {displayName}
+                </span>
               </button>
-            )}
-          </div>
 
-          {/* Mobil knapp i toppen när utloggad */}
-          {!currentUser && (
-            <div className="sm:hidden">
+              <div className="h-4 w-[1px] bg-slate-200" />
+
+              {/* Logga ut-knapp */}
               <button
-                onClick={onOpenAuth}
-                className="bg-indigo-600 text-white px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                onClick={handleSignOut}
+                className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                title="Logga ut"
               >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Logga in</span>
+                <LogOut className="w-4.5 h-4.5" />
               </button>
             </div>
+          ) : (
+            <button
+              onClick={onOpenAuth}
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+            >
+              Logga in
+            </button>
           )}
         </div>
       </header>
 
-      {/* Mobil Bottenmeny */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 px-6 py-2 flex justify-around items-center shadow-lg">
-        <button
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="flex flex-col items-center gap-1 text-slate-600 hover:text-indigo-600 cursor-pointer"
-        >
-          <Home className="w-5 h-5" />
-          <span className="text-[10px] font-medium">Hem</span>
-        </button>
-
-        {currentUser ? (
-          <>
+      {/* Bottenmeny för alla skärmstorlekar om man är inloggad */}
+      {currentUser && (
+        <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200/80 pb-safe">
+          <div className="max-w-md mx-auto px-6 h-16 flex items-center justify-between relative">
+            {/* Grannar */}
             <button
               onClick={onOpenNetwork}
-              className="flex flex-col items-center gap-1 text-slate-600 hover:text-indigo-600 cursor-pointer"
+              className="flex flex-col items-center gap-1 text-slate-500 hover:text-indigo-600 transition-colors cursor-pointer w-16"
             >
               <Users className="w-5 h-5" />
               <span className="text-[10px] font-medium">Grannar</span>
             </button>
 
+            {/* Upphöjd Blå Plusknapp med text i mitten */}
+            <div className="relative -top-3 flex flex-col items-center">
+              <button
+                onClick={onOpenAddTool}
+                className="w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/30 transition-transform active:scale-95 cursor-pointer mb-1"
+                title="Lägg till verktyg"
+              >
+                <Plus className="w-6 h-6 stroke-[2.5]" />
+              </button>
+              <span className="text-[10px] font-semibold text-indigo-600">Nytt verktyg</span>
+            </div>
+
+            {/* Profil */}
             <button
               onClick={onOpenProfile}
-              className="flex flex-col items-center gap-1 text-slate-600 hover:text-indigo-600 cursor-pointer"
+              className="flex flex-col items-center gap-1 text-slate-500 hover:text-indigo-600 transition-colors cursor-pointer w-16"
             >
               <User className="w-5 h-5" />
               <span className="text-[10px] font-medium">Profil</span>
             </button>
-          </>
-        ) : (
-          <button
-            onClick={onOpenAuth}
-            className="flex flex-col items-center gap-1 text-indigo-600 font-semibold cursor-pointer"
-          >
-            <LogIn className="w-5 h-5" />
-            <span className="text-[10px]">Logga in</span>
-          </button>
-        )}
-      </nav>
+          </div>
+        </nav>
+      )}
     </>
   );
 }

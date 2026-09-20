@@ -1,177 +1,127 @@
 import React, { useState } from 'react';
+import { X, LogIn, UserPlus, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { X, Mail, Lock, User, Home, Loader2 } from 'lucide-react';
 
-export function AuthModal({ isOpen, onClose, onAuthSuccess }) {
+export function AuthModal({ isOpen, onClose }) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [addressInfo, setAddressInfo] = useState('');
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [error, setError] = useState(null);
 
   if (!isOpen) return null;
 
   async function handleSubmit(e) {
     e.preventDefault();
     setLoading(true);
-    setErrorMsg('');
+    setError(null);
 
     try {
       if (isSignUp) {
-        // Skapa konto
-        const { data, error } = await supabase.auth.signUp({
+        const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
         });
-
-        if (error) throw error;
-
-        if (data.user) {
-          // Spara profilinformation (namn & husnummer)
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert([
-              {
-                id: data.user.id,
-                full_name: fullName,
-                address_info: addressInfo,
-              },
-            ]);
-
-          if (profileError) console.error('Fel vid sparning av profil:', profileError);
-        }
+        if (signUpError) throw signUpError;
+        alert('Konto skapat! Du kan nu logga in.');
+        setIsSignUp(false);
       } else {
-        // Logga in
-        const { error } = await supabase.auth.signInWithPassword({
+        const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
-
-        if (error) throw error;
+        if (signInError) throw signInError;
+        onClose();
       }
-
-      onAuthSuccess();
-      onClose();
     } catch (err) {
-      setErrorMsg(err.message || 'Ett fel uppstod vid autentisering.');
+      setError(err.message || 'Ett fel uppstod vid inloggning.');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl relative">
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-xl relative animate-in fade-in zoom-in-95 duration-150">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+          className="absolute right-4 top-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <h3 className="text-xl font-bold text-slate-800 mb-2">
-          {isSignUp ? 'Skapa konto hos ToolPool' : 'Logga in på ToolPool'}
-        </h3>
+        <h2 className="text-xl font-bold text-slate-800 mb-2">
+          {isSignUp ? 'Skapa konto' : 'Logga in'}
+        </h2>
         <p className="text-xs text-slate-500 mb-6">
           {isSignUp
-            ? 'Gå med i grannskapets verktygspool för att dela och låna.'
-            : 'Logga in för att hantera dina verktyg och låna av grannar.'}
+            ? 'Skapa ett konto för att lån ut och låna verktyg.'
+            : 'Välkommen tillbaka! Logga in på ditt konto.'}
         </p>
 
-        {errorMsg && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg">
-            {errorMsg}
+        {error && (
+          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-600 text-xs rounded-xl">
+            {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {isSignUp && (
-            <>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Namn</label>
-                <div className="relative">
-                  <User className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="t.ex. Anna Svensson"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Husnummer / Adress
-                </label>
-                <div className="relative">
-                  <Home className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="t.ex. Hus 12 / Storgatan 4B"
-                    value={addressInfo}
-                    onChange={(e) => setAddressInfo(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-            </>
-          )}
-
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">E-postadress</label>
-            <div className="relative">
-              <Mail className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-              <input
-                type="email"
-                required
-                placeholder="din.epost@doman.se"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              E-postadress
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="din.epost@exempel.se"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Lösenord</label>
-            <div className="relative">
-              <Lock className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-              <input
-                type="password"
-                required
-                minLength={6}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Lösenord
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
+            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
           >
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            {isSignUp ? 'Skapa konto' : 'Logga in'}
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : isSignUp ? (
+              <>
+                <UserPlus className="w-4 h-4" />
+                <span>Skapa konto</span>
+              </>
+            ) : (
+              <>
+                <LogIn className="w-4 h-4" />
+                <span>Logga in</span>
+              </>
+            )}
           </button>
         </form>
 
-        <div className="mt-4 text-center">
+        <div className="mt-6 text-center border-t border-slate-100 pt-4">
           <button
-            type="button"
             onClick={() => {
               setIsSignUp(!isSignUp);
-              setErrorMsg('');
+              setError(null);
             }}
-            className="text-xs text-indigo-600 font-medium hover:underline"
+            className="text-xs text-indigo-600 font-semibold hover:underline cursor-pointer"
           >
             {isSignUp
               ? 'Har du redan ett konto? Logga in'

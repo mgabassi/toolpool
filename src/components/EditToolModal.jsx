@@ -1,38 +1,29 @@
-import React, { useState } from 'react';
-import { X, Upload, Wrench } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Pencil } from 'lucide-react';
 
-export function AddToolModal({ isOpen, onClose, onAddTool }) {
+export function EditToolModal({ isOpen, onClose, tool, onUpdateTool }) {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Bygg');
   const [description, setDescription] = useState('');
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!isOpen) return null;
-
-  function handleImageChange(e) {
-    const file = e.target.files[0];
-    if (file) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
+  useEffect(() => {
+    if (tool) {
+      setTitle(tool.title || '');
+      setCategory(tool.category || 'Bygg');
+      setDescription(tool.description || '');
     }
-  }
+  }, [tool]);
+
+  if (!isOpen || !tool) return null;
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!title.trim()) return;
 
     setIsSubmitting(true);
-    await onAddTool({ title, category, description }, imageFile);
+    await onUpdateTool(tool.id, { title, category, description });
     setIsSubmitting(false);
-
-    // Återställ formulär
-    setTitle('');
-    setCategory('Bygg');
-    setDescription('');
-    setImageFile(null);
-    setImagePreview(null);
     onClose();
   }
 
@@ -42,9 +33,9 @@ export function AddToolModal({ isOpen, onClose, onAddTool }) {
         <div className="flex justify-between items-center pb-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
-              <Wrench className="w-4 h-4" />
+              <Pencil className="w-4 h-4" />
             </div>
-            <h2 className="text-base font-bold text-slate-800">Lägg till verktyg</h2>
+            <h2 className="text-base font-bold text-slate-800">Redigera verktyg</h2>
           </div>
           <button
             onClick={onClose}
@@ -62,7 +53,6 @@ export function AddToolModal({ isOpen, onClose, onAddTool }) {
             <input
               type="text"
               required
-              placeholder="t.ex. Slagborr 18V"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -88,32 +78,10 @@ export function AddToolModal({ isOpen, onClose, onAddTool }) {
             <label className="block text-xs font-semibold text-slate-700 mb-1">Beskrivning</label>
             <textarea
               rows={3}
-              placeholder="Inkludera gärna tillbehör eller speciella instruktioner..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Bild</label>
-            <div className="flex items-center gap-3">
-              {imagePreview ? (
-                <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-slate-200 shrink-0">
-                  <img src={imagePreview} alt="Förhandsvisning" className="w-full h-full object-cover" />
-                </div>
-              ) : null}
-              <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-dashed border-slate-300 rounded-xl text-xs font-medium cursor-pointer transition-colors">
-                <Upload className="w-4 h-4 text-slate-400" />
-                <span>{imageFile ? 'Ändra bild' : 'Välj bild'}</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="hidden"
-                />
-              </label>
-            </div>
           </div>
 
           <div className="pt-2 flex gap-2">
@@ -129,7 +97,7 @@ export function AddToolModal({ isOpen, onClose, onAddTool }) {
               disabled={isSubmitting}
               className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm cursor-pointer disabled:opacity-50"
             >
-              {isSubmitting ? 'Sparar...' : 'Spara verktyg'}
+              {isSubmitting ? 'Sparar...' : 'Spara ändringar'}
             </button>
           </div>
         </form>
