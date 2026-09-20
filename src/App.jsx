@@ -4,6 +4,9 @@ import { Navbar } from './components/Navbar';
 import { ToolCard } from './components/ToolCard';
 import { AddToolModal } from './components/AddToolModal';
 import { LendModal } from './components/LendModal';
+import { AuthModal } from './components/AuthModal';
+import { EditProfileModal } from './components/EditProfileModal';
+import { ManageNetworkModal } from './components/ManageNetworkModal';
 import { Search, Plus, Filter, Loader2, Wrench } from 'lucide-react';
 
 export default function App() {
@@ -17,9 +20,12 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOwner, setSelectedOwner] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'lent_out', 'borrowed_by_me'
+  const [statusFilter, setStatusFilter] = useState('all');
 
   // Modaler
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isNetworkOpen, setIsNetworkOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [lendModalTool, setLendModalTool] = useState(null);
 
@@ -214,7 +220,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-24 sm:pb-12">
-      <Navbar currentUser={currentUser} />
+      <Navbar
+        currentUser={currentUser}
+        onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenProfile={() => setIsProfileOpen(true)}
+        onOpenNetwork={() => setIsNetworkOpen(true)}
+      />
 
       <main className="max-w-6xl mx-auto px-4 pt-6">
         {/* Sök och Lägg till */}
@@ -241,7 +252,7 @@ export default function App() {
           )}
         </div>
 
-        {/* Nya Filterkortet med knapparna */}
+        {/* Filter-sektion */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 space-y-3">
           <div className="flex gap-1.5 overflow-x-auto pb-1 border-b border-slate-100">
             <button
@@ -318,7 +329,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Verktygsgrid */}
+        {/* Verktygslista */}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">
             <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-2" />
@@ -348,6 +359,11 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Alla Modaler samlade i App */}
+      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+      <EditProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} currentUser={currentUser} />
+      <ManageNetworkModal isOpen={isNetworkOpen} onClose={() => setIsNetworkOpen(false)} currentUser={currentUser} />
 
       <AddToolModal
         isOpen={isAddModalOpen}
